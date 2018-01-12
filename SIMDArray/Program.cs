@@ -36,7 +36,7 @@ namespace SIMDArray
 
 
             sw.Stop();
-            long a = sw.ElapsedMilliseconds;
+            var a = sw.ElapsedMilliseconds;
             Console.WriteLine("vs=" + a);
             sw.Reset();
             sw.Start();
@@ -47,10 +47,10 @@ namespace SIMDArray
                 var tmp = MyVector.Add(v0, v1);
             }
             sw.Stop();
-            long b = sw.ElapsedMilliseconds;
+            var b = sw.ElapsedMilliseconds;
 
             Console.WriteLine("mv=" + b);
-            Console.WriteLine(1.0*b/a);
+            Console.WriteLine(1.0 * b / a);
         }
     }
 
@@ -128,7 +128,7 @@ namespace SIMDArray
         {
             return v.arr.Length / 4;
         }
-        
+
 
         #region Subtract
 
@@ -157,8 +157,8 @@ namespace SIMDArray
             fixed (float* rtnp = &rtn.arr[0])
             {
                 var p0 = &v1;
-                var p1 = (Vector4*)vec0;
-                var r = (Vector4*)rtnp;
+                var p1 = (Vector4*) vec0;
+                var r = (Vector4*) rtnp;
                 for (var i = 0; i < loopNum; i++)
                 {
                     *r = Vector4.Subtract(*p0, *p1);
@@ -180,9 +180,9 @@ namespace SIMDArray
             fixed (float* vec0 = &v0.arr[0])
             fixed (float* rtnp = &rtn.arr[0])
             {
-                var p0 = (Vector4*)vec0;
+                var p0 = (Vector4*) vec0;
                 var p1 = &v1;
-                var r = (Vector4*)rtnp;
+                var r = (Vector4*) rtnp;
                 for (var i = 0; i < loopNum; i++)
                 {
                     *r = Vector4.Subtract(*p0, *p1);
@@ -205,9 +205,9 @@ namespace SIMDArray
             fixed (float* vec1 = &v1.arr[0])
             fixed (float* rtnp = &rtn.arr[0])
             {
-                var p0 = (Vector4*)vec0;
-                var p1 = (Vector4*)vec1;
-                var r = (Vector4*)rtnp;
+                var p0 = (Vector4*) vec0;
+                var p1 = (Vector4*) vec1;
+                var r = (Vector4*) rtnp;
                 for (var i = 0; i < loopNum; i++)
                 {
                     *r = Vector4.Subtract(*p0, *p1);
@@ -314,8 +314,6 @@ namespace SIMDArray
                 rtn.arr[i] = v0.arr[i] + v1.arr[i];
             return rtn;
         }
-
-     
 
         #endregion
 
