@@ -3,8 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Numerics;
-using System.Runtime.InteropServices;
-using Microsoft.Win32.SafeHandles;
 
 namespace SIMDArray
 {
@@ -12,8 +10,8 @@ namespace SIMDArray
     {
         private static void Main(string[] args)
         {
-            var size = 10000000;
-            var loop = 100;
+            var size = 100000;
+            var loop = 10000;
             var arr = new float[size];
             for (var i = 0; i < arr.Length; i++)
                 arr[i] = i;
@@ -33,7 +31,7 @@ namespace SIMDArray
 
             for (var i = 0; i < loop; i++)
             {
-                var tmp = VectorSimd.Add(s0, s1);
+                var tmp = s0.Sum();
             }
 
 
@@ -46,7 +44,7 @@ namespace SIMDArray
 
             for (var i = 0; i < loop; i++)
             {
-                var tmp = MyVector.Add(v0, v1);
+                var tmp = v0.Sum();
             }
             sw.Stop();
             var b = sw.ElapsedMilliseconds;
@@ -56,32 +54,30 @@ namespace SIMDArray
         }
     }
 
-  unsafe   class MyVector
+    internal class MyVector
     {
-        public MyVector(int size) 
+        public MyVector(int size)
         {
             arr = new float[size];
         }
 
-        public MyVector(float[] f) 
+        public MyVector(float[] f)
         {
             arr = f;
-         }
+        }
 
         private readonly float[] arr;
 
         public static MyVector Div(MyVector v0, MyVector v1)
         {
-
             var rtn = new MyVector(v0.arr.Length);
             for (var i = 0; i < v0.arr.Length; i++)
-                rtn.arr[i] = v0.arr[i] + v1.arr[i];
+                rtn.arr[i] = v0.arr[i] / v1.arr[i];
             return rtn;
         }
 
         public static MyVector Add(MyVector v0, float v)
         {
-           
             var rtn = new MyVector(v0.arr.Length);
             for (var i = 0; i < v0.arr.Length; i++)
                 rtn.arr[i] = v0.arr[i] + v;
@@ -96,7 +92,15 @@ namespace SIMDArray
             return rtn;
         }
 
-    
+        public  float Sum()
+        {
+            float sum = 0;
+            foreach (var n in arr)
+            {
+                sum += n;
+            }
+            return sum;
+        }
     }
 
     internal unsafe class VectorSimd : IEnumerable<float>
@@ -108,7 +112,8 @@ namespace SIMDArray
         {
             arr = new float[Size];
         }
-        public VectorSimd(float[] v) 
+
+        public VectorSimd(float[] v)
         {
             arr = v;
         }
@@ -118,8 +123,8 @@ namespace SIMDArray
             get => arr[n];
             set => arr[n] = value;
         }
-       
-       private static int GetArrayCount(VectorSimd v)
+
+        private static int GetArrayCount(VectorSimd v)
         {
             return v.arr.Length % 4 == 0 ? v.arr.Length / 4 : v.arr.Length / 4 + 1;
         }
@@ -128,9 +133,10 @@ namespace SIMDArray
         {
             return v.arr.Length / 4;
         }
-
-        
-
+        private static int GetLoopCount(float[] v)
+        {
+            return v.Length / 4;
+        }
 
         #region Subtract
 
@@ -169,7 +175,7 @@ namespace SIMDArray
                 }
             }
             for (var i = loopNum * 4; i < v0.arr.Length; i++)
-                rtn.arr[i] = v0.arr[i] + v;
+                rtn.arr[i] = v0.arr[i] - v;
             return rtn;
         }
 
@@ -193,7 +199,7 @@ namespace SIMDArray
                 }
             }
             for (var i = loopNum * 4; i < v0.arr.Length; i++)
-                rtn.arr[i] = v0.arr[i] + v;
+                rtn.arr[i] = v0.arr[i] - v;
             return rtn;
         }
 
@@ -219,12 +225,11 @@ namespace SIMDArray
                 }
             }
             for (var i = loopNum * 4; i < v0.arr.Length; i++)
-                rtn.arr[i] = v0.arr[i] + v1.arr[i];
+                rtn.arr[i] = v0.arr[i] - v1.arr[i];
             return rtn;
         }
 
         #endregion
-
 
         #region Add
 
@@ -317,6 +322,70 @@ namespace SIMDArray
 
         #endregion
 
+        #region Div
+
+        public static VectorSimd operator /(VectorSimd v0, VectorSimd v1)
+        {
+            return Div(v0, v1);
+        }
+
+        public static VectorSimd operator /(float v, VectorSimd v1)
+        {
+            return Div(v, v1);
+        }
+
+        public static VectorSimd operator /(VectorSimd v0, float v)
+        {
+            return Div(v0, v);
+        }
+
+        public static VectorSimd Div(float v, VectorSimd v1)
+        {
+            var rtn = new VectorSimd(v1.arr.Length);
+            var loopNum = GetLoopCount(v1);
+            var vec0 = new Vector4(v, v, v, v);
+            fixed (float* vec1 = v1.arr)
+            fixed (float* rtnp = rtn.arr)
+            {
+                var p0 = &vec0;
+                var p1 = (Vector4*) vec1;
+                var r = (Vector4*) rtnp;
+                for (var i = 0; i < loopNum; i++)
+                {
+                    *r = Vector4.Divide(*p0, *p1);
+                    r++;
+
+                    p1++;
+                }
+            }
+            for (var i = loopNum * 4; i < v1.arr.Length; i++)
+                rtn.arr[i] = v / v1.arr[i];
+            return rtn;
+        }
+
+        public static VectorSimd Div(VectorSimd v0, float v1)
+        {
+            var rtn = new VectorSimd(v0.arr.Length);
+            var loopNum = GetLoopCount(v0);
+            var vec1 = new Vector4(v1, v1, v1, v1);
+            fixed (float* vec0 = v0.arr)
+            fixed (float* rtnp = rtn.arr)
+            {
+                var p0 = (Vector4*) vec0;
+                var p1 = &vec1;
+                var r = (Vector4*) rtnp;
+                for (var i = 0; i < loopNum; i++)
+                {
+                    *r = Vector4.Divide(*p0, *p1);
+                    r++;
+                    p0++;
+                }
+            }
+            for (var i = loopNum * 4; i < v0.arr.Length; i++)
+                rtn.arr[i] = v0.arr[i] / v1;
+            return rtn;
+        }
+
         public static VectorSimd Div(VectorSimd v0, VectorSimd v1)
         {
             var rtn = new VectorSimd(v0.arr.Length);
@@ -325,9 +394,9 @@ namespace SIMDArray
             fixed (float* vec1 = v1.arr)
             fixed (float* rtnp = rtn.arr)
             {
-                var p0 = (Vector4*)vec0;
-                var p1 = (Vector4*)vec1;
-                var r = (Vector4*)rtnp;
+                var p0 = (Vector4*) vec0;
+                var p1 = (Vector4*) vec1;
+                var r = (Vector4*) rtnp;
                 for (var i = 0; i < loopNum; i++)
                 {
                     *r = Vector4.Divide(*p0, *p1);
@@ -341,7 +410,30 @@ namespace SIMDArray
             return rtn;
         }
 
+        #endregion
 
+        public float Sum()
+        {
+            var loopNum = GetLoopCount(arr);
+            Vector4 tmp = new Vector4(0, 0, 0, 0);
+            fixed (float* v = arr)
+            {
+                var p = (Vector4*) v;
+                var t = (Vector4*) &tmp;
+                for (int i = 0; i < loopNum; i++)
+                {
+                    *t = Vector4.Add( *t, *p);
+                    p++;
+                }
+            }
+            float sum = 0;
+            for (var i = loopNum * 4; i <arr.Length; i++)
+               sum += arr[i];
+            sum += tmp.X + tmp.Y + tmp.Z + tmp.W;
+            return sum;
+        }
+
+       
         #region linq
 
         public IEnumerator<float> GetEnumerator()
@@ -356,7 +448,5 @@ namespace SIMDArray
         }
 
         #endregion
-       
-
     }
 }
