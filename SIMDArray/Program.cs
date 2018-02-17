@@ -10,7 +10,7 @@ namespace SIMDArray
     {
         private static void Main(string[] args)
         {
-            var size = 100000;
+            var size = 100000; //100000
             var loop = 10000;
             var arr = new float[size];
             for (var i = 0; i < arr.Length; i++)
@@ -31,7 +31,7 @@ namespace SIMDArray
 
             for (var i = 0; i < loop; i++)
             {
-                var tmp = s0.Sum();
+                var tmp = VectorSimd.Dot(s0, s1);
             }
 
 
@@ -44,7 +44,7 @@ namespace SIMDArray
 
             for (var i = 0; i < loop; i++)
             {
-                var tmp = v0.Sum();
+                var tmp = MyVector.Dot(v0, v1);
             }
             sw.Stop();
             var b = sw.ElapsedMilliseconds;
@@ -92,18 +92,24 @@ namespace SIMDArray
             return rtn;
         }
 
-        public  float Sum()
+        public float Sum()
         {
             float sum = 0;
             foreach (var n in arr)
-            {
                 sum += n;
-            }
             return sum;
+        }
+
+        public static float Dot(MyVector v0, MyVector v1)
+        {
+            float rtn = 0;
+            for (var i = 0; i < v0.arr.Length; i++)
+                rtn += v0.arr[i] * v1.arr[i];
+            return rtn;
         }
     }
 
-    internal unsafe class VectorSimd : IEnumerable<float>
+    public unsafe class VectorSimd : IEnumerable<float>
 
     {
         public float[] arr;
@@ -133,6 +139,7 @@ namespace SIMDArray
         {
             return v.arr.Length / 4;
         }
+
         private static int GetLoopCount(float[] v)
         {
             return v.Length / 4;
@@ -415,25 +422,46 @@ namespace SIMDArray
         public float Sum()
         {
             var loopNum = GetLoopCount(arr);
-            Vector4 tmp = new Vector4(0, 0, 0, 0);
+            var tmp = new Vector4(0, 0, 0, 0);
             fixed (float* v = arr)
             {
                 var p = (Vector4*) v;
-                var t = (Vector4*) &tmp;
-                for (int i = 0; i < loopNum; i++)
+                var t = &tmp;
+                for (var i = 0; i < loopNum; i++)
                 {
-                    *t = Vector4.Add( *t, *p);
+                    *t = Vector4.Add(*t, *p);
                     p++;
                 }
             }
             float sum = 0;
-            for (var i = loopNum * 4; i <arr.Length; i++)
-               sum += arr[i];
+            for (var i = loopNum * 4; i < arr.Length; i++)
+                sum += arr[i];
             sum += tmp.X + tmp.Y + tmp.Z + tmp.W;
             return sum;
         }
 
-       
+        public static float Dot(VectorSimd v0, VectorSimd v1)
+        {
+            float rtn = 0;
+            var loopNum = GetLoopCount(v0);
+
+            fixed (float* vec0 = v0.arr)
+            fixed (float* vec1 = v1.arr)
+            {
+                var p0 = (Vector4*) vec0;
+                var p1 = (Vector4*) vec1;
+                for (var i = 0; i < loopNum; i++)
+                {
+                    rtn += Vector4.Dot(*p0, *p1);
+                    p0++;
+                    p1++;
+                }
+            }
+            for (var i = loopNum * 4; i < v0.arr.Length; i++)
+                rtn += v0.arr[i] * v1.arr[i];
+            return rtn;
+        }
+
         #region linq
 
         public IEnumerator<float> GetEnumerator()
@@ -448,5 +476,78 @@ namespace SIMDArray
         }
 
         #endregion
+
+        
+        public static VectorSimd Multiply(float v, VectorSimd v0)
+        {
+            var rtn = new VectorSimd(v0.arr.Length);
+            var loopNum = GetLoopCount(v0);
+            var v1 = new Vector4(v, v, v, v);
+            //  vec0;
+            fixed (float* vec0 = &v0.arr[0])
+            fixed (float* rtnp = &rtn.arr[0])
+            {
+                var p0 = (Vector4*)vec0;
+                var p1 = &v1;
+                var r = (Vector4*)rtnp;
+                for (var i = 0; i < loopNum; i++)
+                {
+                    *r = Vector4.Multiply(*p0, *p1);
+                    r++;
+                    p0++;
+                }
+            }
+            for (var i = loopNum * 4; i < v0.arr.Length; i++)
+                rtn.arr[i] = v0.arr[i] * v;
+            return rtn;
+        }
+
+        public static VectorSimd Multiply(VectorSimd v0, float v)
+        {
+            var rtn = new VectorSimd(v0.arr.Length);
+            var loopNum = GetLoopCount(v0);
+            var v1 = new Vector4(v, v, v, v);
+            //  vec0;
+            fixed (float* vec0 = &v0.arr[0])
+            fixed (float* rtnp = &rtn.arr[0])
+            {
+                var p0 = (Vector4*)vec0;
+                var p1 = &v1;
+                var r = (Vector4*)rtnp;
+                for (var i = 0; i < loopNum; i++)
+                {
+                    *r = Vector4.Multiply(*p0, *p1);
+                    r++;
+                    p0++;
+                }
+            }
+            for (var i = loopNum * 4; i < v0.arr.Length; i++)
+                rtn.arr[i] = v0.arr[i] * v;
+            return rtn;
+        }
+
+        public static VectorSimd Multiply(VectorSimd v0, VectorSimd v1)
+        {
+            var rtn = new VectorSimd(v0.arr.Length);
+            var loopNum = GetLoopCount(v0);
+            fixed (float* vec0 = v0.arr)
+            fixed (float* vec1 = v1.arr)
+            fixed (float* rtnp = rtn.arr)
+            {
+                var p0 = (Vector4*)vec0;
+                var p1 = (Vector4*)vec1;
+                var r = (Vector4*)rtnp;
+                for (var i = 0; i < loopNum; i++)
+                {
+                    *r = Vector4.Multiply(*p0, *p1);
+                    r++;
+                    p0++;
+                    p1++;
+                }
+            }
+            for (var i = loopNum * 4; i < v0.arr.Length; i++)
+                rtn.arr[i] = v0.arr[i] *v1.arr[i];
+            return rtn;
+        }
     }
 }
